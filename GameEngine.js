@@ -7,7 +7,7 @@ export class GameEngine{
 
 	constructor(canvas){
 		this._entities = {};
-		this._collliders = [];
+		this._colliders = [];
 		this._canvas = new MyCanvas(canvas);
 		this._gameEvents = new Event();
 		this._background = [];
@@ -27,6 +27,7 @@ export class GameEngine{
 
 	_addEntity(entity){
 		entity.id = addId();
+		entity.engine = this;
 		this._entities[entity.id] = entity;
 		
 
@@ -47,7 +48,7 @@ export class GameEngine{
 		//set up delta
 		const timestamp = Date.now();
 		if(this._prevTime === undefined){this._prevTime = timestamp}
-		let delta = timestamp - this._prevTime;
+		let delta = (timestamp - this._prevTime)/100;
 		this._prevTime = timestamp;
 
 		//Update
@@ -211,6 +212,12 @@ export class Entity{
 		return this._components[id];
 	}
 
+	onCollision(col){
+		for(const [key, val] of Object.entries(this._components)){
+			val.onCollision(col);
+		}
+	}
+
 
 	update(delta){
 		for(const [key, val] of Object.entries(this._components)){
@@ -366,6 +373,8 @@ export class Component{
 	}
 
 	draw(ctx, matrix){return;}
+
+	onCollision(col){return;}
 }
 
 export class Transform {
@@ -558,13 +567,16 @@ export class BoxCollider extends Component{
 		
 		this.debug = false;
 		
-
+		
 	}
 
 	onStart(){
 		this.size = this.transform.size;
 		this.half = this.size.scalar(0.5);
 		this.updateVertices();
+
+		//subscribe the collision listener
+		this.parent.engine._gameEvents.subscribe(this.parent, 'collision', 'onCollision')
 	}
 
 	updateSize(size){
@@ -585,11 +597,10 @@ export class BoxCollider extends Component{
 
 	}
 
-	_projection(x, y){
+	_projection(pos){
 		//same as update vertices but for checking positions outside of the object
 		const size = this.size;
 		const scale = this.transform.scale;
-		let pos = new Vector2(x,y);
 		pos = pos.subtract(this.half.scalar(scale));
 
 		let v = new Matrix(3,4);
@@ -602,13 +613,13 @@ export class BoxCollider extends Component{
 		return v;
 	}
 
-	checkCollisions(x=null, y=null){
+	checkCollisions(pos = null){
 		//creates an array of items collided with
-		//all params optional.  if no params, will return list of anycollisions with current postion
-		//if x and y, will make a projection and check the projection position
+		//pos is a Vector2 of position x,y
+		//if pos is null will make a projection and check the projection position
 
 		//grab the current matrix or shadow matrix
-		const aMatrix = (x==null && y==null)? this.vertices : this._projection(x,y);
+		const aMatrix = (pos == null)? this.vertices : this._projection(pos);
 		
 		let col = [];
 		
@@ -636,6 +647,12 @@ export class BoxCollider extends Component{
 
 	update(delta){
 		this.updateVertices();
+		let col = this.checkCollisions()
+		if(col){
+			col.forEach(c => {
+				this.parent.engine._gameEvents.notify('collision', this.parent, c)
+			});
+		}
 		
 	}
 
@@ -908,10 +925,23 @@ export class Event{
 		}
 	}
 
-	notify(caller, event){
-		this.events[event].forEach(e => {
-			e.callback(e.listener, caller);
-		});
+	notify(event, param, listener=null){
+		try {
+			this.events[event].forEach(e => {
+				//e is an object with a listener object and callback method
+				if(listener == null){
+					e.listener[e.callback](param);
+				}else{
+					if(listener == e.listener){
+						e.listener[e.callback](param);
+					}
+				}
+			});
+		} catch (error) {
+			//ignore the event and move on
+		}
+		
+		
 	}
 }
 
