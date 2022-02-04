@@ -11,6 +11,8 @@ export class GameEngine{
 		this._canvas = new MyCanvas(canvas);
 		this._gameEvents = new Event();
 		this._background = [];
+		this._ids = 0;
+
 
 		this._camera = new Camera(0,0);
 		this._addEntity(this._camera);
@@ -25,8 +27,13 @@ export class GameEngine{
 
 	}
 
+	addId(){
+		this._ids ++;
+		return this._ids;
+	}
+
 	_addEntity(entity){
-		entity.id = addId();
+		entity.id = this.addId(entity.name);
 		entity.engine = this;
 		this._entities[entity.id] = entity;
 		
@@ -185,7 +192,7 @@ export class Entity{
 	}
 
 	_addComponent(component){
-		component.id = addId();
+		component.id = this.engine.addId();
 		component.parent = this;
 		this._components[component.id] = component;
 		component.transform = this.transform;
@@ -198,13 +205,14 @@ export class Entity{
 	}
 
 	_getComponentByName(name){
-		for(const [key,val] of Object.keys(this._components)){
-			if(this._components[key].name == name){
-				return this._components[key];
+		let result = undefined;
+		Object.keys(this._components).forEach(key=>{
+			console.log(this.name, this._components[key].name, name);
+			if(String(this._components[key].name) == String(name)){
+				result =  this._components[key];
 			}
-		}
-
-		return false;
+		});
+		return result;
 		
 	}
 
@@ -959,10 +967,11 @@ export class Map {
 
 export class Vector2{
 
-	static UP = new Vector2(0,1);
-	static DOWN = new Vector2(0,-1);
+	static UP = new Vector2(0,-1);
+	static DOWN = new Vector2(0,1);
 	static RIGHT = new Vector2(1,0);
 	static LEFT = new Vector2(-1,0);
+	static ZERO = new Vector2(0,0);
 
 	constructor(x, y){
 		this.x = x;
@@ -1257,12 +1266,7 @@ class MyCanvas{
  * ===============================================================
  */
 
-let ids = 0;
-export function addId(){
-	ids ++;
-	return ids;
-	
-}
+
 
 export function getEntitiesByComponent(engine, component){
 	//returns an array entities that have the component passed in
